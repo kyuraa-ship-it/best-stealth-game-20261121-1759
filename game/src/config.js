@@ -46,6 +46,15 @@ export const COIN_START = 3;
 export const COIN_THROW_SPEED = 420;
 export const COIN_HEAR_RADIUS = 190;
 
+// Smoke vials: a thrown cloud that blocks every eye for a few seconds.
+export const SMOKE_START = 2;
+export const SMOKE_RADIUS = 90;
+export const SMOKE_DURATION = 4;
+export const SMOKE_THROW_SPEED = 420;
+
+// Brass Eye watchers: static sentinels whose cone sweeps a full circle.
+export const WATCHER_TURN_SPEED = 0.35; // radians per second
+
 // Scoring.
 export const SCORE_ARTIFACT = 500;
 export const SCORE_GHOST_BONUS = 400; // finish a level never fully spotted
@@ -83,6 +92,9 @@ export const COLORS = {
   exit: '#58d68d',
   exitLocked: '#5a6b7a',
   coin: '#e8c15a',
+  smoke: 'rgba(178, 184, 196, 0.55)',
+  watcher: '#c9a24b',
+  watcherLens: '#ffe9b0',
   text: '#e8e4d8',
   textDim: '#9aa5b5',
   danger: '#ff5a4e',

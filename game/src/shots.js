@@ -9,7 +9,7 @@ import { STEP } from './config.js';
 import { canSeeGuard } from './guards.js';
 import { isShadow } from './levels.js';
 import { SCREEN_LEVEL_DONE, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
-import { stepWorld, throwCoin } from './world.js';
+import { stepWorld, throwCoin, throwSmoke } from './world.js';
 
 const SAMPLE = STEP;
 
@@ -40,14 +40,18 @@ function runPath(world, waypoints, seconds, sneakNearGuards) {
     if (world.status !== 'playing') break;
     const player = world.player;
     const level = world.level;
-    const alerted = world.guards.find((g) => g.state === 'alert');
+    // Every eye that can raise the alarm: patrolling guards and Brass Eyes.
+    const eyes = [...world.guards, ...world.watchers];
+    const alerted = world.guards.find((g) => g.state === 'alert')
+      ?? world.watchers.find((w) => w.state === 'alert');
     const prev = wi > 0 ? waypoints[wi - 1] : [level.spawn.x, level.spawn.y];
-    // A guard that has noticed something (meter rising, or eyes on the
+    // An eye that has noticed something (meter rising, or eyes on the
     // thief up close) means break contact now: fall back to the last safe
     // spot before the meter fills, instead of walking into the cone.
-    const noticed = world.guards.some((g) => {
+    // Under smoke cover the pilot pushes on — no eye can see through it.
+    const noticed = world.smoke.length === 0 && eyes.some((g) => {
       const d = Math.hypot(g.x - player.x, g.y - player.y);
-      return g.suspicion > 25 || (d < 200 && canSeeGuard(level, g, player));
+      return g.suspicion > 25 || (d < 200 && canSeeGuard(level, g, player, world.smoke));
     });
     let input;
     if (alerted) {
@@ -71,17 +75,19 @@ function runPath(world, waypoints, seconds, sneakNearGuards) {
       waitTimer = 0;
     } else if (wi < waypoints.length) {
       const [tx, ty] = waypoints[wi];
-      const nearGuard = world.guards.some((g) => Math.hypot(g.x - player.x, g.y - player.y) < 230);
-      const guardNearTarget = world.guards.some((g) => Math.hypot(g.x - tx, g.y - ty) < 170);
+      const nearGuard = eyes.some((g) => Math.hypot(g.x - player.x, g.y - player.y) < 230);
+      const guardNearTarget = eyes.some((g) => Math.hypot(g.x - tx, g.y - ty) < 170);
       const laneBusy = nearGuard || guardNearTarget;
       const inShadow = isShadow(level, player.x, player.y);
-      const seen = world.guards.some((g) => canSeeGuard(level, g, player));
+      const seen = eyes.some((g) => canSeeGuard(level, g, player, world.smoke));
       const atPrev = Math.hypot(prev[0] - player.x, prev[1] - player.y) < 24;
       if (laneBusy && !inShadow && !seen && !forced) {
         // A guard is close and we are out in the open: back off to safety,
         // or wait it out on safe ground. After 8 s of this, push through.
         // If we have waited a second and still hold a coin, throw it past
         // the guard, away from the lane, and let it pull the guard off.
+        // (No smoke here: one cloud cannot cover a whole corridor, and
+        // running through blind got the pilot caught — v1 waits instead.)
         if (waitTimer > 1 && world.player.coins > 0 && coinCooldown <= 0) {
           const g = world.guards.find((gg) => Math.hypot(gg.x - tx, gg.y - ty) < 170)
             ?? world.guards[0];
@@ -101,11 +107,11 @@ function runPath(world, waypoints, seconds, sneakNearGuards) {
         if (waitTimer >= 8) forced = true;
       } else {
         waitTimer = 0;
-        const closeGuard = world.guards.some((g) => Math.hypot(g.x - player.x, g.y - player.y) < 150);
+        const closeGuard = eyes.some((g) => Math.hypot(g.x - player.x, g.y - player.y) < 150);
         // Steer to the waypoint, but curve away from any guard close by.
         let mx = (tx - player.x) / Math.max(1, Math.hypot(tx - player.x, ty - player.y));
         let my = (ty - player.y) / Math.max(1, Math.hypot(tx - player.x, ty - player.y));
-        for (const g of world.guards) {
+        for (const g of eyes) {
           const gd = Math.hypot(g.x - player.x, g.y - player.y);
           if (gd < 170 && gd > 1) {
             // Sidestep only: keep the part of the push that is perpendicular
@@ -119,7 +125,7 @@ function runPath(world, waypoints, seconds, sneakNearGuards) {
           }
         }
         const ml = Math.hypot(mx, my) || 1;
-        const nearestGuard = Math.min(...world.guards.map((g) => Math.hypot(g.x - player.x, g.y - player.y)));
+        const nearestGuard = Math.min(...eyes.map((g) => Math.hypot(g.x - player.x, g.y - player.y)));
         const sneak = sneakNearGuards && nearestGuard <= 100;
         const run = !sneak && nearestGuard > 200;
         input = { mx: mx / ml, my: my / ml, sneak, run };
@@ -153,13 +159,23 @@ export function stageShot(name, world) {
   if (name === 'play') {
     // Down the west corridor, pocket the hall artifact, slip south past the
     // wall at column 7 through the row-13 gap, and end in the shadowed
-    // alcove at (12, 8) while the patrols pass.
+    // alcove at (12, 8) while the patrols pass — with a smoke vial popped
+    // between the thief and the nearest guard, so the cover shows the cloud.
     runPath(
       world,
       [tile(1, 8), tile(3, 8), tile(3, 13), tile(14, 13), tile(14, 8), tile(12, 8)],
       40,
       true,
     );
+    if (world.player.smokes > 0 && world.status === 'playing') {
+      const g = world.guards.reduce((a, b) =>
+        Math.hypot(a.x - world.player.x, a.y - world.player.y) <
+        Math.hypot(b.x - world.player.x, b.y - world.player.y)
+          ? a
+          : b,
+      );
+      throwSmoke(world, (world.player.x + g.x) / 2, (world.player.y + g.y) / 2);
+    }
     return { screen: SCREEN_PLAY };
   }
   if (name === 'alert') {
@@ -203,8 +219,9 @@ export function stageShot(name, world) {
     return { screen: SCREEN_PLAY };
   }
   if (name === 'win') {
-    // Pocket all three artifacts and walk out: the real rules, piloted.
-    // Artifacts sit at (3,8), (23,1) and (26,15); the exit at (22,17).
+    // Pocket all four artifacts and walk out: the real rules, piloted.
+    // Artifacts sit at (3,8), (23,1), (26,15) and (29,18); the exit at (22,17).
+    // The (29,18) artifact lies on the bottom corridor the pilot walks anyway.
     runPath(
       world,
       [tile(1, 8), tile(3, 8), tile(3, 13), tile(14, 13), tile(14, 12), tile(13, 13), tile(13, 18), tile(30, 18), tile(30, 7), tile(23, 7), tile(23, 1), tile(30, 7), tile(30, 15), tile(26, 15), tile(23, 18), tile(22, 17)],

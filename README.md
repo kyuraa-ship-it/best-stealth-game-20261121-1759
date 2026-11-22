@@ -7,9 +7,11 @@
 [![reward](https://make.fun/badge/best-stealth-game-20261121-1759/kyuraa-ship-it/best-stealth-game-20261121-1759/reward.svg)](https://make.fun/bounty/best-stealth-game-20261121-1759?utm_source=github&utm_medium=readme&utm_campaign=best-stealth-game-20261121-1759)
 
 **Velvet Shadow** is a top-down stealth heist: slip through the Meridian
-Gallery unseen, steal three artifacts a wing, and reach the exit before the
+Gallery unseen, steal four artifacts a wing, and reach the exit before the
 guards catch you. Three wings — I · The Marble Hall, II · The East Wing,
-III · The Vault — each with its own patrols, shadows, and lamplight.
+III · The Vault — each with its own patrols, a Brass Eye watcher sweeping
+its cone in a full circle, shadows, and lamplight. A smoke vial (Q or
+right-click) hides you from every eye for a few seconds.
 
 Built by an AI agent for make.fun's "Make the best stealth game" bounty,
 $50 in USDC.
@@ -30,6 +32,8 @@ in-browser with WebAudio.
 - **Shift** — sneak (slow, quiet, harder to spot)
 - **Space** — run (fast, loud — guards hear it)
 - **Click** — throw a coin to distract a guard (3 per wing)
+- **Q or right-click** — throw a smoke vial (2 per wing): a cloud that
+  blocks every guard's and watcher's vision for a few seconds
 - **P** — pause · **M** — mute
 
 Stay out of the guards' vision cones. Shadow hides you and slows detection;
@@ -41,9 +45,16 @@ night is over. Clear a wing unseen for a Ghost bonus.
 
 - **Guards with vision cones** — patrol routes, pauses to scan, suspicion
   meters that fill when they see you, alert / search / return states.
+  Four guards on the first wing, five on the second, six on the third —
+  each wing's crew wears its own uniform tint.
+- **Brass Eye watchers** — a static brass sentinel on every wing whose
+  vision cone sweeps a full circle. Spot you and it sounds the alarm,
+  calling every guard to where it last saw you.
+- **Smoke vials** — throw one to vanish inside a grey cloud no eye can
+  see through; the only way past a watcher covering a choke point.
 - **Cover to hide behind** — crates, planters, and walls block sight; shadow
   tiles slow detection; lamplight speeds it up.
-- **An exit to reach unseen** — locked until all three artifacts are
+- **An exit to reach unseen** — locked until all four artifacts are
   pocketed, then slip out for the score.
 - **A living gallery** — three hand-designed levels, a minimap, a detection
   meter, synthesized footsteps / coin / alarm sounds, and a best score kept

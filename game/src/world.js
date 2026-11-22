@@ -9,9 +9,12 @@ import {
   SCORE_ARTIFACT,
   SCORE_GHOST_BONUS,
   SCORE_TIME_BONUS_PER_SEC,
+  SMOKE_DURATION,
+  SMOKE_RADIUS,
+  SMOKE_THROW_SPEED,
   STEP,
 } from './config.js';
-import { createGuard, hearNoise, updateGuard } from './guards.js';
+import { createGuard, createWatcher, hearNoise, updateGuard, updateWatcher } from './guards.js';
 import { parseLevel } from './levels.js';
 import { createPlayer, updatePlayer } from './player.js';
 
@@ -27,8 +30,10 @@ export function createWorld(levelIndex, random) {
     levelIndex,
     random,
     player: createPlayer(level.spawn),
-    guards: level.routes.map((route, i) => createGuard(route, i)),
+    guards: level.routes.map((route, i) => createGuard(route, i, levelIndex)),
+    watchers: level.watchers.map((w, i) => createWatcher(w.x, w.y, i)),
     coins: [], // thrown distraction coins in flight / on the floor
+    smoke: [], // smoke clouds: { x, y, r, timer }
     particles: [],
     artifactsTaken: 0,
     artifactsTotal: level.artifacts.length,
@@ -96,6 +101,18 @@ export function throwCoin(world, tx, ty) {
   return true;
 }
 
+/** Throw a smoke vial toward (tx, ty): a cloud that blocks every eye. */
+export function throwSmoke(world, tx, ty) {
+  const player = world.player;
+  if (player.smokes <= 0 || world.status !== WORLD_PLAYING) return false;
+  player.smokes -= 1;
+  const x = Math.max(20, Math.min(world.level.width - 20, tx));
+  const y = Math.max(20, Math.min(world.level.height - 20, ty));
+  world.smoke.push({ x, y, r: SMOKE_RADIUS, timer: SMOKE_DURATION });
+  addParticles(world, x, y, 14, '#b8bcc4', 70);
+  return true;
+}
+
 /**
  * One fixed step. `input` is { mx, my, sneak, run }. Returns the events
  * this step produced, for sound and toasts: 'step', 'pickup', 'coin',
@@ -152,15 +169,35 @@ export function stepWorld(world, input, dt = STEP) {
   }
   world.coins = world.coins.filter((c) => !c.landed || c.ringTimer > 0);
 
+  // Smoke clouds age out after a few seconds.
+  for (const cloud of world.smoke) cloud.timer -= dt;
+  world.smoke = world.smoke.filter((c) => c.timer > 0);
+
   // Guards see, chase, and catch.
   for (const guard of world.guards) {
     const before = guard.state;
-    updateGuard(world.level, guard, world.player, dt, events);
+    updateGuard(world.level, guard, world.player, dt, events, world.smoke);
     if (guard.suspicion >= 100) world.everSpotted = true;
     if (before !== 'alert' && guard.state === 'alert') {
       world.shake = 1;
       world.flash = 1;
       setMessage(world, 'SPOTTED! Break line of sight!', 2.2);
+    }
+  }
+
+  // Brass Eye watchers sweep their cones; a full meter sounds the alarm
+  // and every patrolling guard converges on where the watcher last saw you.
+  for (const watcher of world.watchers) {
+    const before = watcher.state;
+    updateWatcher(world.level, watcher, world.player, dt, events, world.smoke);
+    if (watcher.suspicion >= 100) world.everSpotted = true;
+    if (before !== 'alert' && watcher.state === 'alert') {
+      world.shake = 1;
+      world.flash = 1;
+      setMessage(world, 'SPOTTED! Break line of sight!', 2.2);
+      for (const guard of world.guards) {
+        if (watcher.lastSeen) hearNoise(guard, watcher.lastSeen.x, watcher.lastSeen.y, world.level);
+      }
     }
   }
   if (events.includes('spotted')) events.push('alarm');

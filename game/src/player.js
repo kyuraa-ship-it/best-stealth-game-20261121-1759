@@ -10,6 +10,7 @@ import {
   PLAYER_RUN_SPEED,
   PLAYER_SNEAK_SPEED,
   PLAYER_WALK_SPEED,
+  SMOKE_START,
 } from './config.js';
 import { moveCircle } from './guards.js';
 
@@ -27,6 +28,7 @@ export function createPlayer(spawn) {
     noise: 0,
     stepPhase: 0,
     coins: 3,
+    smokes: SMOKE_START,
   };
 }
 

@@ -13,6 +13,7 @@ import {
   ACTION_MUTE,
   ACTION_PAUSE,
   ACTION_RESTART,
+  ACTION_SMOKE,
   createInput,
 } from './input.js';
 import { createRandom } from './random.js';
@@ -38,6 +39,7 @@ import {
   restartLevel,
   stepWorld,
   throwCoin,
+  throwSmoke,
 } from './world.js';
 
 /** The longest frame the loop catches up on; a longer stall is dropped. */
@@ -131,10 +133,23 @@ function runGame() {
       } else if (input.takeAction(ACTION_RESTART)) {
         startLevel(world.levelIndex, true);
       } else {
+        // Q throws a smoke vial ahead of the thief.
+        if (input.takeAction(ACTION_SMOKE)) {
+          audio.ensure();
+          const p = world.player;
+          if (throwSmoke(world, p.x + Math.cos(p.angle) * 130, p.y + Math.sin(p.angle) * 130)) {
+            audio.play('smoke');
+          }
+        }
         const click = input.takeClick();
         if (click) {
           audio.ensure();
-          if (throwCoin(world, click.x, click.y)) audio.play('coin');
+          if (click.button === 2) {
+            // Right-click: smoke vial at the clicked point.
+            if (throwSmoke(world, click.x, click.y)) audio.play('smoke');
+          } else if (throwCoin(world, click.x, click.y)) {
+            audio.play('coin');
+          }
         }
         accumulator += elapsed;
         while (accumulator >= STEP) {

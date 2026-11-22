@@ -4,6 +4,7 @@
 //   o lamp pool (lit: easier to be seen)   C crate (cover, blocks sight)
 //   D display case (cover, blocks sight)  P plant (cover, blocks sight)
 //   * artifact    E exit        S player spawn
+//   W Brass Eye watcher (static sentinel, cone sweeps 360 degrees)
 // Guard routes are tile coordinates; a guard walks them in order, pauses at
 // each stop, and turns to look around before moving on.
 import { TILE } from './config.js';
@@ -25,9 +26,9 @@ const LEVEL_1 = [
   '#......o.......#...............#',
   '#.DD...........#......,,.......#',
   '#.............#......,,...*....#',
-  '#....CC.......#......,,........#',
+  '#....CC.......#....W.,,........#',
   '#.............#.......E........#',
-  '#......o.......................#',
+  '#......o.....................*.#',
   '################################',
 ];
 
@@ -40,9 +41,9 @@ const LEVEL_2 = [
   '#....o...........o..#######....#',
   '#..................#.....#.....#',
   '#..*....CC.........#.....#..o..#',
-  '#..................#.....#.....#',
+  '#...........W......#.....#.....#',
   '#....,,,,....D......#.....#....#',
-  '#....,,,,...........#######....#',
+  '#....,,,,...........#######.*..#',
   '#....,,,,....o.................#',
   '#..........######.######.......#',
   '#.DD.......#..........#...CC...#',
@@ -65,13 +66,13 @@ const LEVEL_3 = [
   '#..*.....#..CC........#.......#',
   '#........#.............#.......#',
   '#..,,....#.DD....o.....#######.#',
-  '#..,,....#.....................#',
+  '#..,,....#................*....#',
   '#..,,....#....,,,,....CC.......#',
   '#........#....,,,,.............#',
   '#....o...#######.#######.......#',
   '#........#............#...*....#',
   '#.DD.....#....,,......#.DD.....#',
-  '#........#....,,..D...#........#',
+  '#........#....,,..D.W.#........#',
   '#...CC...#....,,......#....o...#',
   '#........#.....E...............#',
   '################################',
@@ -83,12 +84,14 @@ const ROUTES = {
     [[6, 2], [13, 2], [13, 5], [6, 5]],
     [[24, 7], [29, 7], [29, 11], [24, 11]],
     [[22, 14], [29, 14], [29, 17], [22, 17]],
+    [[24, 1], [29, 1], [29, 4], [24, 4]],
   ],
   2: [
     [[6, 1], [12, 1], [12, 4], [6, 4]],
     [[10, 5], [18, 5], [18, 7], [10, 7]],
     [[5, 13], [10, 13], [10, 16], [5, 16]],
     [[13, 13], [19, 13], [19, 17], [13, 17]],
+    [[24, 13], [29, 13], [29, 16], [24, 16]],
   ],
   3: [
     [[5, 1], [9, 1], [9, 4], [5, 4]],
@@ -96,6 +99,7 @@ const ROUTES = {
     [[4, 10], [8, 10], [8, 12], [4, 12]],
     [[10, 14], [16, 14], [16, 17], [10, 17]],
     [[26, 1], [29, 1], [29, 4], [26, 4]],
+    [[25, 5], [29, 5], [29, 7], [25, 7]],
   ],
 };
 
@@ -106,9 +110,9 @@ export const LEVEL_NAMES = [
 ];
 
 export const LEVEL_BRIEFS = [
-  'Three artifacts, three guards. Learn the patrols, stay in the dark.',
-  'Four guards and more lamplight. Coins distract a guard — throw one with a click.',
-  'Five guards, tight corridors. Never be seen twice — the alarm is fast here.',
+  'Four artifacts, four guards. Learn the patrols, stay in the dark — and mind the Brass Eye.',
+  'Five guards and a Brass Eye watcher. Smoke vials (Q) hide you from every eye.',
+  'Six guards, tight corridors. Never be seen twice — the alarm is fast here.',
 ];
 
 /** Parse one map into walls, cover, shadow, light, artifacts, exit, spawn. */
@@ -119,6 +123,7 @@ export function parseLevel(index) {
   const shadow = new Set();
   const light = new Set();
   const artifacts = [];
+  const watchers = [];
   let exit = null;
   let spawn = null;
   for (let y = 0; y < rows.length; y += 1) {
@@ -130,6 +135,7 @@ export function parseLevel(index) {
       else if (ch === ',') shadow.add(key);
       else if (ch === 'o') light.add(key);
       else if (ch === '*') artifacts.push({ x: x * TILE + TILE / 2, y: y * TILE + TILE / 2, taken: false });
+      else if (ch === 'W') watchers.push({ x: x * TILE + TILE / 2, y: y * TILE + TILE / 2 });
       else if (ch === 'E') exit = { x: x * TILE + TILE / 2, y: y * TILE + TILE / 2 };
       else if (ch === 'S') spawn = { x: x * TILE + TILE / 2, y: y * TILE + TILE / 2 };
     }
@@ -147,6 +153,7 @@ export function parseLevel(index) {
     shadow,
     light,
     artifacts,
+    watchers,
     exit,
     spawn,
     routes: ROUTES[index + 1].map((route) =>

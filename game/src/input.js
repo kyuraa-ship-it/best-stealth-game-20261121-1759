@@ -14,6 +14,7 @@ export const ACTION_CONFIRM = 'confirm';
 export const ACTION_PAUSE = 'pause';
 export const ACTION_MUTE = 'mute';
 export const ACTION_RESTART = 'restart';
+export const ACTION_SMOKE = 'smoke';
 
 export function createInput(canvas) {
   const keys = new Set();
@@ -49,6 +50,7 @@ export function createInput(canvas) {
     if (event.code === 'KeyP' || event.code === 'Escape') input.actions.add(ACTION_PAUSE);
     if (event.code === 'KeyM') input.actions.add(ACTION_MUTE);
     if (event.code === 'KeyR') input.actions.add(ACTION_RESTART);
+    if (event.code === 'KeyQ') input.actions.add(ACTION_SMOKE);
     updateVector();
   }
 
@@ -62,7 +64,12 @@ export function createInput(canvas) {
     input.click = {
       x: ((event.clientX - rect.left) / rect.width) * canvas.width,
       y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+      button: event.button, // 0 = left (coin), 2 = right (smoke)
     };
+  }
+
+  function onContextMenu(event) {
+    event.preventDefault(); // right-click throws smoke, never opens a menu
   }
 
   function onBlur() {
@@ -73,6 +80,7 @@ export function createInput(canvas) {
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('contextmenu', onContextMenu);
   window.addEventListener('blur', onBlur);
 
   input.takeClick = () => {
@@ -89,6 +97,7 @@ export function createInput(canvas) {
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('keyup', onKeyUp);
     canvas.removeEventListener('pointerdown', onPointerDown);
+    canvas.removeEventListener('contextmenu', onContextMenu);
     window.removeEventListener('blur', onBlur);
   };
   return input;

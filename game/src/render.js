@@ -54,6 +54,14 @@ export function createRenderer(canvas) {
         ctx.strokeStyle = COLORS.floorLine;
         ctx.lineWidth = 1;
         ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
+        if ((x + y) % 4 === 0) {
+          // Marble vein: one thin diagonal per fourth tile.
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+          ctx.beginPath();
+          ctx.moveTo(px, py + TILE);
+          ctx.lineTo(px + TILE, py);
+          ctx.stroke();
+        }
         if (level.shadow.has(key)) {
           ctx.fillStyle = 'rgba(6, 8, 14, 0.55)';
           ctx.fillRect(px, py, TILE, TILE);
@@ -221,7 +229,7 @@ export function createRenderer(canvas) {
       ctx.beginPath();
       ctx.ellipse(guard.x, guard.y + 10, 13, 5, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = COLORS.guardUniform;
+      ctx.fillStyle = guard.tint ?? COLORS.guardUniform;
       ctx.beginPath();
       ctx.arc(guard.x, guard.y + bob * 0.2, guard.radius, 0, Math.PI * 2);
       ctx.fill();
@@ -257,6 +265,97 @@ export function createRenderer(canvas) {
         ctx.font = 'bold 20px system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText('?', guard.x, guard.y - guard.radius - 8);
+      }
+    }
+  }
+
+  function drawWatchers(world) {
+    for (const watcher of world.watchers) {
+      // Sweeping cone, brass-gold so it reads as a machine, not a man.
+      const poly = conePolygon(world.level, watcher);
+      const color =
+        watcher.state === 'alert'
+          ? COLORS.coneAlarm
+          : watcher.suspicion >= 35
+            ? COLORS.coneSuspicious
+            : 'rgba(201, 162, 75, 0.20)';
+      const g = ctx.createRadialGradient(watcher.x, watcher.y, 10, watcher.x, watcher.y, 235);
+      g.addColorStop(0, color);
+      g.addColorStop(1, 'rgba(201, 162, 75, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(poly[0].x, poly[0].y);
+      for (let i = 1; i < poly.length; i += 1) ctx.lineTo(poly[i].x, poly[i].y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = color.replace(/0\.\d+\)$/, '0.5)');
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // The brass eye itself: a pedestal, a brass dome, a glowing lens.
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(watcher.x, watcher.y + 10, 13, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#5a4630';
+      ctx.fillRect(watcher.x - 8, watcher.y + 2, 16, 10);
+      ctx.fillStyle = COLORS.watcher;
+      ctx.beginPath();
+      ctx.arc(watcher.x, watcher.y, 12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#6e5626';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      const fx = Math.cos(watcher.angle);
+      const fy = Math.sin(watcher.angle);
+      ctx.fillStyle = COLORS.watcherLens;
+      ctx.beginPath();
+      ctx.arc(watcher.x + fx * 6, watcher.y + fy * 6, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#20242e';
+      ctx.beginPath();
+      ctx.arc(watcher.x + fx * 7, watcher.y + fy * 7, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      if (watcher.suspicion > 1) {
+        ctx.strokeStyle = watcher.state === 'alert' ? COLORS.danger : '#ffb042';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(watcher.x, watcher.y, watcher.radius + 6, -Math.PI / 2, -Math.PI / 2 + (watcher.suspicion / 100) * Math.PI * 2);
+        ctx.stroke();
+      }
+      if (watcher.state === 'alert') {
+        ctx.fillStyle = COLORS.danger;
+        ctx.font = 'bold 22px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('!', watcher.x, watcher.y - watcher.radius - 8);
+      } else if (watcher.suspicion >= 35) {
+        ctx.fillStyle = '#ffb042';
+        ctx.font = 'bold 20px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('?', watcher.x, watcher.y - watcher.radius - 8);
+      }
+    }
+  }
+
+  function drawSmoke(world) {
+    for (const cloud of world.smoke) {
+      const fade = Math.min(1, cloud.timer / 1.2);
+      const g = ctx.createRadialGradient(cloud.x, cloud.y, 4, cloud.x, cloud.y, cloud.r);
+      g.addColorStop(0, `rgba(178, 184, 196, ${0.55 * fade})`);
+      g.addColorStop(0.6, `rgba(160, 166, 178, ${0.35 * fade})`);
+      g.addColorStop(1, 'rgba(160, 166, 178, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(cloud.x, cloud.y, cloud.r, 0, Math.PI * 2);
+      ctx.fill();
+      // Lumps inside the cloud so it reads as smoke, not a flat disc.
+      ctx.fillStyle = `rgba(210, 214, 222, ${0.35 * fade})`;
+      for (let i = 0; i < 5; i += 1) {
+        const a = (i / 5) * Math.PI * 2 + cloud.timer;
+        const lx = cloud.x + Math.cos(a) * cloud.r * 0.45;
+        const ly = cloud.y + Math.sin(a) * cloud.r * 0.45;
+        ctx.beginPath();
+        ctx.arc(lx, ly, cloud.r * 0.22, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
   }
@@ -328,7 +427,7 @@ export function createRenderer(canvas) {
 
   function drawLighting(world) {
     lightCtx.clearRect(0, 0, VIEW_W, VIEW_H);
-    lightCtx.fillStyle = 'rgba(4, 6, 12, 0.62)';
+    lightCtx.fillStyle = 'rgba(4, 6, 12, 0.72)';
     lightCtx.fillRect(0, 0, VIEW_W, VIEW_H);
     lightCtx.globalCompositeOperation = 'destination-out';
     const cut = (x, y, r, strength) => {
@@ -343,9 +442,10 @@ export function createRenderer(canvas) {
     // Moonlight through the skylights and the lamps stay visible.
     for (const key of world.level.light) {
       const [x, y] = key.split(',').map(Number);
-      cut(x * TILE + 20, y * TILE + 20, 90, 0.85);
+      cut(x * TILE + 20, y * TILE + 20, 110, 0.95);
     }
     for (const guard of world.guards) cut(guard.x, guard.y, 70, 0.5);
+    for (const watcher of world.watchers) cut(watcher.x, watcher.y, 60, 0.5);
     cut(world.player.x, world.player.y, 150, 0.95);
     cut(world.level.exit.x, world.level.exit.y, 70, 0.6);
     lightCtx.globalCompositeOperation = 'source-over';
@@ -367,7 +467,7 @@ export function createRenderer(canvas) {
     const p = world.player;
     const maxSuspicion = Math.max(0, ...world.guards.map((g) => g.suspicion));
     ctx.fillStyle = COLORS.hudBg;
-    roundRect(ctx, 12, 12, 560, 54, 10);
+    roundRect(ctx, 12, 12, 620, 54, 10);
     ctx.fill();
     ctx.fillStyle = COLORS.text;
     ctx.font = 'bold 16px system-ui, sans-serif';
@@ -397,8 +497,15 @@ export function createRenderer(canvas) {
     ctx.fillStyle = COLORS.text;
     ctx.font = 'bold 15px system-ui, sans-serif';
     ctx.fillText(`× ${p.coins}`, 452, 32);
+    // Smoke vials.
+    ctx.fillStyle = COLORS.smoke;
+    ctx.beginPath();
+    ctx.arc(486, 31, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = COLORS.text;
+    ctx.fillText(`× ${p.smokes}`, 498, 32);
     ctx.fillStyle = '#ff7a6e';
-    ctx.fillText(`♥ ${'●'.repeat(world.lives)}${'○'.repeat(Math.max(0, 3 - world.lives))}`, 500, 32);
+    ctx.fillText(`♥ ${'●'.repeat(world.lives)}${'○'.repeat(Math.max(0, 3 - world.lives))}`, 536, 32);
 
     // Suspicion meter, top right.
     const mw = 260;
@@ -439,11 +546,11 @@ export function createRenderer(canvas) {
 
     // Controls hint, bottom left.
     ctx.fillStyle = 'rgba(10, 13, 20, 0.55)';
-    roundRect(ctx, 12, VIEW_H - 40, 470, 28, 8);
+    roundRect(ctx, 12, VIEW_H - 40, 660, 28, 8);
     ctx.fill();
     ctx.fillStyle = COLORS.textDim;
     ctx.font = '12px system-ui, sans-serif';
-    ctx.fillText('WASD move  •  Shift sneak  •  Space run  •  Click throw coin  •  P pause  •  M mute', 24, VIEW_H - 25);
+    ctx.fillText('WASD move  •  Shift sneak  •  Space run  •  Click coin  •  Q / Right-click smoke  •  P pause  •  M mute', 24, VIEW_H - 25);
 
     if (screen === SCREEN_PLAY) drawMinimap(world);
   }
@@ -477,6 +584,12 @@ export function createRenderer(canvas) {
       ctx.arc(x0 + g.x * s, y0 + g.y * s, 3.5, 0, Math.PI * 2);
       ctx.fill();
     }
+    for (const w of world.watchers) {
+      ctx.fillStyle = '#ffd34d';
+      ctx.beginPath();
+      ctx.arc(x0 + w.x * s, y0 + w.y * s, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.arc(x0 + world.player.x * s, y0 + world.player.y * s, 3.5, 0, Math.PI * 2);
@@ -502,6 +615,7 @@ export function createRenderer(canvas) {
     drawArtifacts(world.level);
     drawExit(world.level, false);
     drawCones(world);
+    drawWatchers(world);
     drawGuards(world);
     drawPlayer(world);
     drawLighting(world);
@@ -516,13 +630,13 @@ export function createRenderer(canvas) {
     ctx.fillText('A heist in the Meridian Gallery — unseen is the only way in.', VIEW_W / 2, 292);
     ctx.font = '16px system-ui, sans-serif';
     ctx.fillStyle = COLORS.textDim;
-    ctx.fillText('Three nights. Three wings. Three artifacts a night. One exit.', VIEW_W / 2, 330);
+    ctx.fillText('Three nights. Three wings. Four artifacts a night. One exit.', VIEW_W / 2, 330);
     ctx.fillStyle = COLORS.text;
     ctx.font = 'bold 18px system-ui, sans-serif';
     ctx.fillText('Press ENTER to begin', VIEW_W / 2, 420);
     ctx.font = '14px system-ui, sans-serif';
     ctx.fillStyle = COLORS.textDim;
-    ctx.fillText('WASD move  •  Shift sneak  •  Space run  •  Click throws a coin to distract a guard', VIEW_W / 2, 460);
+    ctx.fillText('WASD move  •  Shift sneak  •  Space run  •  Click throws a coin, Q throws a smoke vial', VIEW_W / 2, 460);
     ctx.fillText('Stay out of the cones. Shadow hides you, lamplight exposes you. Running is loud.', VIEW_W / 2, 486);
     ctx.fillText('Best score is kept in this browser.', VIEW_W / 2, 512);
     ctx.textAlign = 'left';
@@ -544,10 +658,12 @@ export function createRenderer(canvas) {
     drawArtifacts(world.level);
     drawExit(world.level, world.artifactsTaken === world.artifactsTotal);
     drawCones(world);
+    drawWatchers(world);
     drawGuards(world);
     drawCoins(world);
     drawParticles(world);
     drawPlayer(world);
+    drawSmoke(world);
     drawNoiseRing(world);
     drawLighting(world);
     if (world.flash > 0) {
@@ -559,7 +675,7 @@ export function createRenderer(canvas) {
       overlay(world.level.name, [
         world.level.brief,
         '',
-        'Steal all 3 artifacts, then slip out through the green exit.',
+        `Steal all ${world.artifactsTotal} artifacts, then slip out through the green exit.`,
         'Press ENTER to start the night.',
       ]);
     } else if (screen === SCREEN_PAUSED) {

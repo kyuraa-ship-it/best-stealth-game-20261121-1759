@@ -22,6 +22,7 @@ import {
   GUARD_RADIUS,
   SEARCH_DURATION,
   SUSPICIOUS_AT,
+  WATCHER_TURN_SPEED,
 } from './config.js';
 import { hasLineOfSight, isLit, isShadow, isSolid } from './levels.js';
 
@@ -63,7 +64,10 @@ function hitsSolid(level, x, y, r) {
   );
 }
 
-export function createGuard(route, index) {
+// Uniform tint per wing, so a later wing reads as a different crew.
+const GUARD_TINTS = ['#46587a', '#2e4d3a', '#5d2e35'];
+
+export function createGuard(route, index, levelIndex = 0) {
   const start = route[0];
   return {
     index,
@@ -84,11 +88,46 @@ export function createGuard(route, index) {
     investigate: null,
     speed: GUARD_PATROL_SPEED,
     walkPhase: 0,
+    tint: GUARD_TINTS[levelIndex] ?? GUARD_TINTS[0],
   };
 }
 
-/** Can this guard see the player right now (range, cone, line of sight)? */
-export function canSeeGuard(level, guard, player) {
+/** A Brass Eye watcher: a static brass sentinel whose cone sweeps 360°. */
+export function createWatcher(x, y, index) {
+  return {
+    index,
+    x,
+    y,
+    radius: GUARD_RADIUS,
+    angle: 0,
+    state: GUARD_PATROL,
+    suspicion: 0,
+    lastSeen: null,
+    speed: WATCHER_TURN_SPEED,
+  };
+}
+
+/** Advance one watcher: its cone turns, and a full meter raises the alarm. */
+export function updateWatcher(level, watcher, player, dt, events, smoke = []) {
+  watcher.angle += watcher.speed * dt;
+  if (watcher.angle > Math.PI * 2) watcher.angle -= Math.PI * 2;
+  const sees = canSeeGuard(level, watcher, player, smoke);
+  if (sees) {
+    watcher.suspicion = Math.min(ALARM_AT, watcher.suspicion + detectionRate(level, watcher, player) * dt);
+    watcher.lastSeen = { x: player.x, y: player.y };
+  } else {
+    watcher.suspicion = Math.max(0, watcher.suspicion - DETECT_DECAY * dt);
+  }
+  if (watcher.suspicion >= ALARM_AT && watcher.state !== GUARD_ALERT) {
+    watcher.state = GUARD_ALERT;
+    events.push('spotted');
+  } else if (watcher.state === GUARD_ALERT && watcher.suspicion < SUSPICIOUS_AT) {
+    watcher.state = GUARD_PATROL;
+  }
+}
+
+/** Can this guard see the player right now (range, cone, smoke, line of sight)? */
+export function canSeeGuard(level, guard, player, smoke = []) {
   const dx = player.x - guard.x;
   const dy = player.y - guard.y;
   const dist = Math.hypot(dx, dy);
@@ -99,6 +138,18 @@ export function canSeeGuard(level, guard, player) {
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
     if (Math.abs(diff) > CONE_HALF_ANGLE) return false;
+  }
+  // A smoke cloud between the eyes blocks vision entirely.
+  if (smoke.length > 0) {
+    const steps = Math.max(1, Math.ceil(dist / 8));
+    for (let i = 1; i < steps; i += 1) {
+      const t = i / steps;
+      const sx = guard.x + dx * t;
+      const sy = guard.y + dy * t;
+      for (const cloud of smoke) {
+        if (Math.hypot(sx - cloud.x, sy - cloud.y) < cloud.r) return false;
+      }
+    }
   }
   return hasLineOfSight(level, guard.x, guard.y, player.x, player.y);
 }
@@ -143,8 +194,8 @@ function moveToward(level, guard, tx, ty, speed, dt, stopAt = 2) {
  * Advance one guard. Returns event strings for the world to announce:
  * 'spotted' when a guard's meter fills, 'lost' when an alarm gives up.
  */
-export function updateGuard(level, guard, player, dt, events) {
-  const sees = canSeeGuard(level, guard, player);
+export function updateGuard(level, guard, player, dt, events, smoke = []) {
+  const sees = canSeeGuard(level, guard, player, smoke);
   if (sees) {
     guard.suspicion = Math.min(ALARM_AT, guard.suspicion + detectionRate(level, guard, player) * dt);
     guard.lastSeen = { x: player.x, y: player.y };

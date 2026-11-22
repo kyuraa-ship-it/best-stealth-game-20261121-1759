@@ -106,6 +106,9 @@ export function createAudio() {
           this.tone(2400, 0.3, 'triangle', 0.14, 1700);
           this.tone(1800, 0.4, 'sine', 0.1, 1200, 0.05);
           break;
+        case 'smoke':
+          this.noiseBurst(0.45, 0.16, 600); // soft poof as the vial bursts
+          break;
         case 'alarm':
           this.tone(220, 0.5, 'sawtooth', 0.16, 440);
           this.tone(233, 0.5, 'sawtooth', 0.12, 466, 0.02);
